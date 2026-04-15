@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import Confetti from "react-confetti";
 import { Ending } from "@/lib/types";
@@ -19,44 +19,87 @@ export default function ResultCard({
   width,
   height,
 }: Props) {
-  const [showSurprise, setShowSurprise] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [surpriseActive, setSurpriseActive] = useState(false);
+  const [surpriseVisible, setSurpriseVisible] = useState(false);
+
+  const surpriseCardRef = useRef<HTMLElement | null>(null);
+  const hasTriggeredRef = useRef(false);
+  const confettiTimeoutRef = useRef<number | null>(null);
 
   const memberText =
     ending.members.length > 0 ? ending.members.join(", ") : "독립형 반응";
 
   useEffect(() => {
-    setShowSurprise(false);
     setShowConfetti(false);
+    setSurpriseActive(false);
+    setSurpriseVisible(false);
+    hasTriggeredRef.current = false;
 
-    const revealTimer = setTimeout(() => {
-  setShowSurprise(true);
-  setShowConfetti(true);
-}, 2500);
-
-const confettiTimer = setTimeout(() => {
-  setShowConfetti(false);
-}, 10000);
+    const revealTimer = window.setTimeout(() => {
+      setSurpriseVisible(true);
+    }, 1200);
 
     return () => {
       clearTimeout(revealTimer);
-      clearTimeout(confettiTimer);
+      if (confettiTimeoutRef.current) {
+        clearTimeout(confettiTimeoutRef.current);
+      }
     };
   }, [ending]);
+
+  useEffect(() => {
+    if (!surpriseVisible) return;
+    if (!surpriseCardRef.current) return;
+
+    const target = surpriseCardRef.current;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry) return;
+
+        if (
+          entry.isIntersecting &&
+          entry.intersectionRatio >= 0.4 &&
+          !hasTriggeredRef.current
+        ) {
+          hasTriggeredRef.current = true;
+          setSurpriseActive(true);
+          setShowConfetti(true);
+
+          confettiTimeoutRef.current = window.setTimeout(() => {
+            setShowConfetti(false);
+          }, 6500);
+
+          observer.disconnect();
+        }
+      },
+      {
+        threshold: [0.2, 0.3, 0.4, 0.5, 0.7],
+      }
+    );
+
+    observer.observe(target);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [surpriseVisible, ending]);
 
   return (
     <>
       {showConfetti && width > 0 && height > 0 && (
-  <div className="pointer-events-none fixed inset-0 z-50">
-    <Confetti
-      width={width}
-      height={height}
-      recycle={false}
-      numberOfPieces={420}
-      gravity={0.2}
-    />
-  </div>
-)}
+        <div className="pointer-events-none fixed inset-0 z-50">
+          <Confetti
+            width={width}
+            height={height}
+            recycle={false}
+            numberOfPieces={420}
+            gravity={0.2}
+          />
+        </div>
+      )}
 
       <motion.div
         initial={{ opacity: 0, y: 18, scale: 0.985 }}
@@ -129,7 +172,7 @@ const confettiTimer = setTimeout(() => {
           </div>
         </section>
 
-        {!showSurprise && (
+        {!surpriseVisible && (
           <section className="rounded-[30px] border border-white/70 bg-white/90 p-5 shadow-[0_20px_60px_rgba(244,114,182,0.10)]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-pink-400">
               Hidden Result
@@ -137,7 +180,7 @@ const confettiTimer = setTimeout(() => {
             <p className="mt-3 text-[14px] leading-7 text-gray-600">
               숨겨진 결론을 정리하고 있어요.
               <br />
-              조금만 기다리면 마지막 카드가 열립니다.
+              마지막 카드가 곧 열립니다.
             </p>
 
             <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-pink-100">
@@ -146,11 +189,27 @@ const confettiTimer = setTimeout(() => {
           </section>
         )}
 
-        {showSurprise && (
+        {surpriseVisible && (
           <motion.section
-            initial={{ opacity: 0, y: 18, scale: 0.985 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.45 }}
+            ref={surpriseCardRef}
+            initial={{ opacity: 0, y: 26, scale: 0.96 }}
+            animate={
+              surpriseActive
+                ? {
+                    opacity: 1,
+                    y: 0,
+                    scale: [1, 1.02, 1],
+                  }
+                : {
+                    opacity: 1,
+                    y: 0,
+                    scale: 1,
+                  }
+            }
+            transition={{
+              duration: surpriseActive ? 0.7 : 0.45,
+              times: surpriseActive ? [0, 0.45, 1] : undefined,
+            }}
             className="rounded-4xl border border-pink-200 bg-linear-to-br from-pink-50 via-rose-50 to-white p-5 shadow-[0_24px_70px_rgba(244,114,182,0.16)]"
           >
             <div className="inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-pink-500 shadow-sm">
@@ -160,7 +219,7 @@ const confettiTimer = setTimeout(() => {
             <TypewriterText
               text={ending.surpriseMessage}
               speed={18}
-              start={showSurprise}
+              start={surpriseActive}
               className="mt-4 whitespace-pre-line text-[18px] font-semibold leading-9 tracking-[-0.02em] text-gray-900"
             />
           </motion.section>
@@ -180,14 +239,18 @@ const confettiTimer = setTimeout(() => {
             </div>
 
             <div className="rounded-3xl bg-gray-50 p-4">
-              <p className="text-[13px] font-semibold text-gray-900">의외로 강하게 끌리는 유형</p>
+              <p className="text-[13px] font-semibold text-gray-900">
+                의외로 강하게 끌리는 유형
+              </p>
               <p className="mt-2 text-[14px] leading-7 text-gray-600">
                 처음엔 무심해 보여도 가까워질수록 반응이 커지고 애정 표현이 진해지는 사람
               </p>
             </div>
 
             <div className="rounded-3xl bg-gray-50 p-4">
-              <p className="text-[13px] font-semibold text-gray-900">가장 강하게 반응한 관계 유형</p>
+              <p className="text-[13px] font-semibold text-gray-900">
+                가장 강하게 반응한 관계 유형
+              </p>
               <p className="mt-2 text-[16px] font-bold leading-7 text-gray-900">
                 {memberText}
               </p>
