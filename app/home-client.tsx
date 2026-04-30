@@ -22,11 +22,11 @@ const initialScores: Record<EndingKey, number> = {
 };
 
 const priority: EndingKey[] = [
-  "all",
   "me",
   "friendA",
   "friendB",
   "friendC",
+  "all",
   "self",
 ];
 
